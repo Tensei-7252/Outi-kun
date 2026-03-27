@@ -18,15 +18,14 @@
 <script type="text/babel">
 const { useState, useEffect } = React;
 
-// ★★★ ここを書き換え ★★★
 const GAS_URL = "https://script.google.com/macros/s/AKfycbwwxyfxoqMAOoe3XZ-UAV2HJuPB9dq2-ALQNQuH8sX8I851wwGlFlqyCZvtx4vleZP_jg/exec";
 
 const INITIAL_TASKS = [
-  { id: 1, name: "料理",    weight: 3, icon: "🍳" },
-  { id: 2, name: "掃除",    weight: 2, icon: "🧹" },
-  { id: 3, name: "洗濯",    weight: 2, icon: "👕" },
-  { id: 4, name: "買い物",  weight: 2, icon: "🛒" },
-  { id: 5, name: "食器洗い",weight: 1, icon: "🍽️" }
+  { id: 1, name: "料理", weight: 3, icon: "🍳" },
+  { id: 2, name: "掃除", weight: 2, icon: "🧹" },
+  { id: 3, name: "洗濯", weight: 2, icon: "👕" },
+  { id: 4, name: "買い物", weight: 2, icon: "🛒" },
+  { id: 5, name: "食器洗い", weight: 1, icon: "🍽️" }
 ];
 
 const COLORS = {
@@ -39,7 +38,6 @@ function App() {
   const [logs, setLogs] = useState([]);
   const [names, setNames] = useState({ A: "パートナーA", B: "パートナーB" });
   const [loaded, setLoaded] = useState(false);
-  const [view, setView] = useState("dashboard");
 
   useEffect(() => {
     fetch(GAS_URL)
@@ -116,8 +114,3 @@ function App() {
     </div>
   );
 }
-
-ReactDOM.createRoot(document.getElementById("root")).render(<App />);
-</script>
-</body>
-</html>
