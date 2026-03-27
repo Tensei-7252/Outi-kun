@@ -24,4 +24,120 @@
     .task-info { flex: 1; }
     .btn { border: none; padding: 10px; border-radius: 8px; cursor: pointer; font-weight: bold; margin-left: 5px; min-width: 45px; }
     .nav-bar { position: fixed; bottom: 0; left: 0; width: 100%; height: 60px; background: #fff; display: flex; border-top: 1px solid #eee; }
-    .nav-item { flex: 1; display:
+    .nav-item { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; font-size: 10px; color: #888; cursor: pointer; }
+    .nav-item.active { color: #333; font-weight: bold; }
+    .form-input { width: 100%; padding: 10px; margin: 5px 0 15px; border-radius: 8px; border: 1px solid #ddd; }
+    .modal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); display: flex; justify-content: center; align-items: center; z-index: 100; }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+  <script type="text/babel">
+    const { useState, useEffect } = React;
+    const GAS_URL = "https://script.google.com/macros/s/AKfycbw1pkuwQ3jtT7AUobbjuXVueSSY8MRcQQO6snoZ-7-38WAQrxawoRE1aPKlDluOgO2XRQ/exec";
+
+    function App() {
+      const [data, setData] = useState({ tasks: [], logs: [], names: { A: "天誠", B: "彩香" } });
+      const [pfps, setPfps] = useState({ A: localStorage.getItem("pfp_A") || "", B: localStorage.getItem("pfp_B") || "" });
+      const [tab, setTab] = useState("home");
+      const [loaded, setLoaded] = useState(false);
+      const [editing, setEditing] = useState(null);
+
+      const load = () => {
+        fetch(GAS_URL).then(r => r.json()).then(d => {
+          const n = { A: "天誠", B: "彩香" };
+          if (d.names) d.names.forEach(x => { if(x.id == 1) n.A = x.name; if(x.id == 2) n.B = x.name; });
+          setData({ tasks: d.tasks || [], logs: d.logs || [], names: n });
+          setLoaded(true);
+        }).catch(() => setLoaded(true));
+      };
+      useEffect(() => { load(); }, []);
+      useEffect(() => { localStorage.setItem("pfp_A", pfps.A); localStorage.setItem("pfp_B", pfps.B); }, [pfps]);
+
+      const post = (act, pay) => {
+        fetch(GAS_URL, { method: "POST", mode: "no-cors", body: JSON.stringify({ action: act, ...pay }) }).then(() => { if(act !== "addLog") load(); });
+      };
+
+      const log = (tid, p) => {
+        const t = data.tasks.find(x => x.id == tid);
+        const l = { taskId: tid, person: p, weight: Number(t.weight), time: Date.now() };
+        setData(prev => ({ ...prev, logs: [...prev.logs, l] }));
+        post("addLog", { target: "logs", data: l });
+      };
+
+      const pA = data.logs.filter(l => l.person === "A").reduce((s, l) => s + Number(l.weight), 0);
+      const pB = data.logs.filter(l => l.person === "B").reduce((s, l) => s + Number(l.weight), 0);
+      const ratioA = (pA + pB) === 0 ? 50 : (pA / (pA + pB)) * 100;
+
+      if (!loaded) return <div style={{textAlign:'center', padding:'50px'}}>読み込み中...</div>;
+
+      return (
+        <div style={{flex:1, display:'flex', flexDirection:'column'}}>
+          <div className="main-content">
+            {tab === "home" ? (
+              <>
+                <div className="score-container">
+                  <div className="card score-card" style={{background:'var(--color-a-light)'}}>
+                    <img src={pfps.A || "https://via.placeholder.com/50"} className="score-pfp" />
+                    <div style={{color:'var(--color-a)', fontWeight:'bold'}}>{data.names.A}</div>
+                    <div className="score-points">{pA}</div>
+                  </div>
+                  <div className="card score-card" style={{background:'var(--color-b-light)'}}>
+                    <img src={pfps.B || "https://via.placeholder.com/50"} className="score-pfp" />
+                    <div style={{color:'var(--color-b)', fontWeight:'bold'}}>{data.names.B}</div>
+                    <div className="score-points">{pB}</div>
+                  </div>
+                </div>
+                <div className="progress-container">
+                  <div style={{width: ratioA+"%", background:'var(--color-a)'}} />
+                  <div style={{width: (100-ratioA)+"%", background:'var(--color-b)'}} />
+                </div>
+                {data.tasks.map(t => (
+                  <div key={t.id} className="card task-card">
+                    <span className="task-icon">{t.icon}</span>
+                    <div className="task-info"><b>{t.name}</b><br/><small>{t.weight}pt</small></div>
+                    <button className="btn" style={{background:'var(--color-a)', color:'#fff'}} onClick={()=>log(t.id, "A")}>{data.names.A[0]}</button>
+                    <button className="btn" style={{background:'var(--color-b)', color:'#fff'}} onClick={()=>log(t.id, "B")}>{data.names.B[0]}</button>
+                  </div>
+                ))}
+              </>
+            ) : (
+              <div className="card">
+                <h3>⚙️ 設定</h3>
+                <label>画像URL (天誠)</label><input className="form-input" value={pfps.A} onChange={e=>setPfps({...pfps, A:e.target.value})} />
+                <label>画像URL (彩香)</label><input className="form-input" value={pfps.B} onChange={e=>setPfps({...pfps, B:e.target.value})} />
+                <hr style={{margin:'15px 0'}}/>
+                <h4>家事の追加</h4>
+                <button className="btn" style={{width:'100%', margin:'10px 0', background:'#eee'}} onClick={()=>setEditing({icon:'🍳', name:'', weight:3})}>＋ 新しい家事</button>
+                {data.tasks.map(t => (
+                  <div key={t.id} style={{display:'flex', justifyContent:'space-between', padding:'5px 0'}}>
+                    <span>{t.icon} {t.name}</span>
+                    <button onClick={()=>post("deleteTask", {id: t.id})} style={{color:'red', border:'none', background:'none'}}>削除</button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {editing && (
+            <div className="modal"><div className="card" style={{width:'80%'}}>
+              <h4>家事の登録</h4>
+              <input className="form-input" placeholder="アイコン" value={editing.icon} onChange={e=>setEditing({...editing, icon:e.target.value})} />
+              <input className="form-input" placeholder="名前" value={editing.name} onChange={e=>setEditing({...editing, name:e.target.value})} />
+              <input className="form-input" type="number" placeholder="点数" value={editing.weight} onChange={e=>setEditing({...editing, weight:e.target.value})} />
+              <button className="btn" style={{background:'#555', color:'#fff'}} onClick={()=>{post("addTask", {data:editing}); setEditing(null);}}>保存</button>
+              <button className="btn" onClick={()=>setEditing(null)}>閉じる</button>
+            </div></div>
+          )}
+
+          <div className="nav-bar">
+            <div className={`nav-item ${tab==="home"?"active":""}`} onClick={()=>setTab("home")}>🏠<span>ホーム</span></div>
+            <div className={`nav-item ${tab==="settings"?"active":""}`} onClick={()=>setTab("settings")}>⚙️<span>設定</span></div>
+          </div>
+        </div>
+      );
+    }
+    ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+  </script>
+</body>
+</html>
