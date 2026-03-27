@@ -9,8 +9,12 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
-    body { background: #FAFAF8; font-family: sans-serif; }
-    .task-btn:active { transform: scale(0.95); }
+    body { background: #FAFAF8; font-family: sans-serif; padding: 20px 15px; }
+    .task-card { background: #fff; padding: 12px; border-radius: 12px; display: flex; align-items: center; gap: 10px; margin-bottom: 10px; box-shadow: 0 2px 5px rgba(0,0,0,0.05); }
+    .btn { border: none; padding: 8px 15px; border-radius: 8px; color: #fff; fontWeight: bold; cursor: pointer; }
+    .btn-a { background: #FF6B6B; }
+    .btn-b { background: #4ECDC4; }
+    .progress-bar { background: #eee; height: 20px; border-radius: 10px; overflow: hidden; display: flex; margin: 20px 0; }
   </style>
 </head>
 <body>
@@ -27,11 +31,6 @@ const INITIAL_TASKS = [
   { id: 4, name: "買い物", weight: 2, icon: "🛒" },
   { id: 5, name: "食器洗い", weight: 1, icon: "🍽️" }
 ];
-
-const COLORS = {
-  A: { main: "#FF6B6B", light: "#FFE5E5", dark: "#CC4444" },
-  B: { main: "#4ECDC4", light: "#E0F7F5", dark: "#2EA89F" }
-};
 
 function App() {
   const [tasks, setTasks] = useState(INITIAL_TASKS);
@@ -68,26 +67,53 @@ function App() {
     });
   };
 
-  const getStats = (p) => {
+  const stats = (p) => {
     const pl = logs.filter(l => l.person === p);
-    return { 
-      weight: pl.reduce((s, l) => s + Number(l.weight), 0), 
-      count: pl.length 
-    };
+    return pl.reduce((s, l) => s + Number(l.weight), 0);
   };
 
-  if (!loaded) return <div style={{padding:20}}>読み込み中...</div>;
+  if (!loaded) return <div>読み込み中...</div>;
 
-  const sA = getStats("A");
-  const sB = getStats("B");
-  const total = sA.weight + sB.weight;
-  const ratioA = total === 0 ? 50 : (sA.weight / total) * 100;
+  const sA = stats("A");
+  const sB = stats("B");
+  const ratioA = (sA + sB) === 0 ? 50 : (sA / (sA + sB)) * 100;
 
   return (
-    <div style={{ padding: "20px 16px", maxWidth: 600, margin: "0 auto" }}>
-      <h1 style={{ textAlign:"center", marginBottom:20 }}>🏠 おうちクン</h1>
+    <div style={{ maxWidth: 500, margin: "0 auto" }}>
+      <h1 style={{ textAlign: "center" }}>🏠 おうちクン</h1>
       
-      <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10, marginBottom:20 }}>
-        {["A","B"].map(p => (
-          <div key={p} style={{ background:COLORS[p].light, padding:15, borderRadius:15 }}>
-            <div style={{ fontWeight:"bold", color:COLORS[p
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginTop: 20 }}>
+        <div style={{ background: "#FFE5E5", padding: 10, borderRadius: 10 }}>
+          <div style={{ fontWeight: "bold", color: "#CC4444" }}>{names.A}</div>
+          <div style={{ fontSize: 24 }}>{sA}pt</div>
+        </div>
+        <div style={{ background: "#E0F7F5", padding: 10, borderRadius: 10 }}>
+          <div style={{ fontWeight: "bold", color: "#2EA89F" }}>{names.B}</div>
+          <div style={{ fontSize: 24 }}>{sB}pt</div>
+        </div>
+      </div>
+
+      <div className="progress-bar">
+        <div style={{ width: ratioA + "%", background: "#FF6B6B" }} />
+        <div style={{ width: (100 - ratioA) + "%", background: "#4ECDC4" }} />
+      </div>
+
+      <div style={{ marginTop: 20 }}>
+        {tasks.map(t => (
+          <div key={t.id} className="task-card">
+            <span style={{ fontSize: 24 }}>{t.icon}</span>
+            <span style={{ flex: 1, fontWeight: "bold" }}>{t.name}</span>
+            <button className="btn btn-a" onClick={() => logTask(t.id, "A")}>A</button>
+            <button className="btn btn-b" onClick={() => logTask(t.id, "B")}>B</button>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+const root = ReactDOM.createRoot(document.getElementById("root"));
+root.render(<App />);
+</script>
+</body>
+</html>
