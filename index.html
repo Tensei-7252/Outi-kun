@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-  <title>おうちクン v3.5</title>
+  <title>おうちクン v3.6</title>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
@@ -22,6 +22,7 @@
     
     /* フィルターのスタイル */
     .filter-select { border: 1px solid #eee; background: #fafafa; padding: 4px 8px; border-radius: 8px; font-size: 12px; color: #666; outline: none; }
+    .home-filter-row { display: flex; justify-content: flex-end; margin-bottom: 10px; padding-right: 5px; }
 
     .score-container { display: flex; gap: 10px; margin-bottom: 12px; }
     .score-card { flex: 1; display: flex; align-items: center; justify-content: center; gap: 8px; padding: 10px; border-radius: 14px; }
@@ -36,7 +37,7 @@
     .task-name { font-weight: bold; font-size: 14px; margin-bottom: 2px; }
     .task-weight { font-size: 10px; color: var(--text-sub); }
     .btn-group { display: flex; gap: 8px; }
-    .btn-log { min-width: 44px; height: 36px; border: none; border-radius: 10px; color: white; font-weight: bold; font-size: 13px; }
+    .btn-log { min-width: 44px; height: 36px; border: none; border-radius: 10px; color: white; font-weight: bold; font-size: 13px; cursor: pointer; }
     .log-item { display: flex; justify-content: space-between; align-items: center; padding: 10px 0; border-bottom: 1px solid #f9f9f9; font-size: 12px; }
     .btn-del { color: #ccc; background: none; border: none; font-size: 18px; padding: 5px; }
     .form-input { width: 100%; padding: 10px; margin-bottom: 10px; border-radius: 10px; border: 1px solid #eee; background: #fafafa; font-size: 13px; }
@@ -55,7 +56,7 @@
       const [view, setView] = useState("home");
       const [loaded, setLoaded] = useState(false);
       const [editing, setEditing] = useState(null);
-      const [filterRange, setFilterRange] = useState("1month"); // デフォルト1ヶ月
+      const [filterRange, setFilterRange] = useState("1month");
 
       const load = () => {
         fetch(GAS_URL).then(r => r.json()).then(d => {
@@ -82,7 +83,6 @@
           .then(() => { if (act === 'addTask' || act === 'deleteTask') load(); });
       };
 
-      // フィルター処理を適用したログ
       const filteredLogs = useMemo(() => {
         if (filterRange === "all") return data.logs;
         const now = Date.now();
@@ -97,6 +97,15 @@
       const pA = useMemo(() => filteredLogs.filter(l => l.person === "A").reduce((s, l) => s + Number(l.weight || 0), 0), [filteredLogs]);
       const pB = useMemo(() => filteredLogs.filter(l => l.person === "B").reduce((s, l) => s + Number(l.weight || 0), 0), [filteredLogs]);
       const ratioA = (pA + pB) === 0 ? 50 : (pA / (pA + pB)) * 100;
+
+      const FilterSelect = () => (
+        <select className="filter-select" value={filterRange} onChange={e => setFilterRange(e.target.value)}>
+          <option value="1week">1週間</option>
+          <option value="1month">1ヶ月</option>
+          <option value="3month">3ヶ月</option>
+          <option value="all">すべて</option>
+        </select>
+      );
 
       if (!loaded) return <div style={{textAlign:'center', padding:'100px', color:'#ccc'}}>...</div>;
 
@@ -113,6 +122,9 @@
           <div className="main-content">
             {view === "home" && (
               <>
+                <div className="home-filter-row">
+                  <FilterSelect />
+                </div>
                 <div className="score-container">
                   <div className="score-card a"><img src={pfps.A} className="score-pfp" /><div className="score-points" style={{color:'var(--color-a)'}}>{pA}</div></div>
                   <div className="score-card b"><img src={pfps.B} className="score-pfp" /><div className="score-points" style={{color:'var(--color-b)'}}>{pB}</div></div>
@@ -120,9 +132,6 @@
                 <div className="progress-container">
                   <div style={{width: ratioA+'%', background:'var(--color-a)', transition:'width 0.5s'}} />
                   <div style={{width: (100-ratioA)+'%', background:'var(--color-b)', transition:'width 0.5s'}} />
-                </div>
-                <div style={{fontSize:10, color:'#bbb', textAlign:'center', marginBottom:10}}>
-                  表示期間: {filterRange === "all" ? "全期間" : filterRange === "1month" ? "直近1ヶ月" : filterRange === "1week" ? "直近1週間" : "直近3ヶ月"}
                 </div>
                 {data.tasks.map(t => (
                   <div key={t.id} className="card task-card">
@@ -141,12 +150,7 @@
               <div className="card">
                 <div className="title-row">
                   <div className="title">📊 最近の履歴</div>
-                  <select className="filter-select" value={filterRange} onChange={e => setFilterRange(e.target.value)}>
-                    <option value="1week">1週間</option>
-                    <option value="1month">1ヶ月</option>
-                    <option value="3month">3ヶ月</option>
-                    <option value="all">すべて</option>
-                  </select>
+                  <FilterSelect />
                 </div>
                 {filteredLogs.length === 0 ? <p style={{textAlign:'center', padding:20, color:'#ccc'}}>対象期間の履歴はありません</p> : 
                   filteredLogs.slice(0, 50).map((l, i) => {
