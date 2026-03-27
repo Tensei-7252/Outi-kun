@@ -11,10 +11,11 @@
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body { background: #FAFAF8; font-family: sans-serif; padding: 20px; color: #333; }
     .card { background: #fff; padding: 15px; border-radius: 12px; margin-bottom: 10px; display: flex; align-items: center; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
-    .btn { border: none; padding: 10px 20px; border-radius: 8px; color: #fff; font-weight: bold; cursor: pointer; margin-left: 5px; }
+    .btn { border: none; padding: 10px 15px; border-radius: 8px; color: #fff; font-weight: bold; cursor: pointer; margin-left: 5px; min-width: 50px; }
     .btn-a { background: #FF6B6B; }
     .btn-b { background: #4ECDC4; }
     .progress { background: #eee; height: 20px; border-radius: 10px; display: flex; overflow: hidden; margin: 20px 0; }
+    .loading { text-align: center; padding: 50px; font-weight: bold; color: #888; }
   </style>
 </head>
 <body>
@@ -22,44 +23,72 @@
   <script type="text/babel">
     const { useState, useEffect } = React;
 
+    // 新しいGASのURLを適用済み
     const GAS_URL = "https://script.google.com/macros/s/AKfycbw1pkuwQ3jtT7AUobbjuXVueSSY8MRcQQO6snoZ-7-38WAQrxawoRE1aPKlDluOgO2XRQ/exec";
 
-    const TASKS = [
-      { id: 1, name: "料理", weight: 3, icon: "🍳" },
-      { id: 2, name: "掃除", weight: 2, icon: "🧹" },
-      { id: 3, name: "洗濯", weight: 2, icon: "👕" },
-      { id: 4, name: "買い物", weight: 2, icon: "🛒" },
-      { id: 5, name: "食器洗い", weight: 1, icon: "🍽️" }
-    ];
-
     function App() {
-      const [logs, setLogs] = useState([]);
+      const [data, setData] = useState({ tasks: [], logs: [], names: { A: "パートナーA", B: "パートナーB" } });
       const [loaded, setLoaded] = useState(false);
 
       useEffect(() => {
         fetch(GAS_URL)
           .then(res => res.json())
-          .then(data => {
-            if (data.logs) setLogs(data.logs);
+          .then(resData => {
+            const nObj = { A: "パートナーA", B: "パートナーB" };
+            // スプレッドシートの names シートから名前を抽出
+            if (resData.names && resData.names.length > 0) {
+              resData.names.forEach(n => {
+                if(n.id == 1) nObj.A = n.name;
+                if(n.id == 2) nObj.B = n.name;
+              });
+            }
+            setData({
+              tasks: resData.tasks || [],
+              logs: resData.logs || [],
+              names: nObj
+            });
             setLoaded(true);
           })
-          .catch(() => setLoaded(true));
+          .catch(err => {
+            console.error("Fetch Error:", err);
+            setLoaded(true);
+          });
       }, []);
 
       const logTask = (taskId, person) => {
-        const task = TASKS.find(t => t.id === taskId);
-        const newLog = { taskId, person, weight: Number(task.weight), time: Date.now() };
-        setLogs([...logs, newLog]);
-        fetch(GAS_URL, { method: "POST", mode: "no-cors", body: JSON.stringify({ action: "addLog", target: "logs", data: newLog }) });
+        const task = data.tasks.find(t => t.id == taskId);
+        if (!task) return;
+
+        const newLog = { 
+          taskId: taskId, 
+          person: person, 
+          weight: Number(task.weight), 
+          time: Date.now() 
+        };
+
+        // 画面を即座に更新
+        setData(prev => ({ ...prev, logs: [...prev.logs, newLog] }));
+
+        // GASへ送信
+        fetch(GAS_URL, {
+          method: "POST",
+          mode: "no-cors",
+          body: JSON.stringify({ action: "addLog", target: "logs", data: newLog })
+        });
       };
 
-      const getPoints = (p) => logs.filter(l => l.person === p).reduce((s, l) => s + Number(l.weight), 0);
-      
-      if (!loaded) return <div>読み込み中...</div>;
+      const getPoints = (p) => {
+        return data.logs
+          .filter(l => l.person === p)
+          .reduce((sum, l) => sum + Number(l.weight), 0);
+      };
+
+      if (!loaded) return <div className="loading">おうちのデータを読み込み中...</div>;
 
       const pA = getPoints("A");
       const pB = getPoints("B");
-      const ratioA = (pA + pB) === 0 ? 50 : (pA / (pA + pB)) * 100;
+      const total = pA + pB;
+      const ratioA = total === 0 ? 50 : (pA / total) * 100;
 
       return (
         <div style={{ maxWidth: "500px", margin: "0 auto" }}>
@@ -67,33 +96,41 @@
           
           <div style={{ display: "flex", gap: "10px" }}>
             <div style={{ flex: 1, background: "#FFE5E5", padding: "15px", borderRadius: "10px" }}>
-              <b>パートナーA</b><br /><span style={{ fontSize: "24px" }}>{pA}pt</span>
+              <div style={{ color: "#CC4444", fontWeight: "bold", fontSize: "14px" }}>{data.names.A}</div>
+              <div style={{ fontSize: "28px", fontWeight: "bold" }}>{pA}pt</div>
             </div>
             <div style={{ flex: 1, background: "#E0F7F5", padding: "15px", borderRadius: "10px" }}>
-              <b>パートナーB</b><br /><span style={{ fontSize: "24px" }}>{pB}pt</span>
+              <div style={{ color: "#2EA89F", fontWeight: "bold", fontSize: "14px" }}>{data.names.B}</div>
+              <div style={{ fontSize: "28px", fontWeight: "bold" }}>{pB}pt</div>
             </div>
           </div>
 
           <div className="progress">
-            <div style={{ width: ratioA + "%", background: "#FF6B6B" }} />
-            <div style={{ width: (100 - ratioA) + "%", background: "#4ECDC4" }} />
+            <div style={{ width: ratioA + "%", background: "#FF6B6B", transition: "width 0.5s ease" }} />
+            <div style={{ width: (100 - ratioA) + "%", background: "#4ECDC4", transition: "width 0.5s ease" }} />
           </div>
 
           <div>
-            {TASKS.map(t => (
+            {data.tasks.map(t => (
               <div key={t.id} className="card">
-                <span style={{ fontSize: "24px", marginRight: "10px" }}>{t.icon}</span>
+                <span style={{ fontSize: "24px", marginRight: "12px" }}>{t.icon}</span>
                 <span style={{ flex: 1, fontWeight: "bold" }}>{t.name}</span>
-                <button className="btn btn-a" onClick={() => logTask(t.id, "A")}>A</button>
-                <button className="btn btn-b" onClick={() => logTask(t.id, "B")}>B</button>
+                <button className="btn btn-a" onClick={() => logTask(t.id, "A")}>{data.names.A.charAt(0)}</button>
+                <button className="btn btn-b" onClick={() => logTask(t.id, "B")}>{data.names.B.charAt(0)}</button>
               </div>
             ))}
+            {data.tasks.length === 0 && (
+              <div style={{ textAlign: "center", color: "#888", marginTop: "20px" }}>
+                スプレッドシートの「tasks」シートに<br />家事を入力してください。
+              </div>
+            )}
           </div>
         </div>
       );
     }
 
-    ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+    const root = ReactDOM.createRoot(document.getElementById("root"));
+    root.render(<App />);
   </script>
 </body>
 </html>
