@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-  <title>おうちクン v3.3</title>
+  <title>おうちクン v3.4</title>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
@@ -11,43 +11,30 @@
     :root { --bg-color: #F8F9FB; --card-bg: #FFFFFF; --text-main: #444444; --text-sub: #A0A0A0; --color-a: #FF7F7F; --color-b: #64D2C8; --color-a-light: #FFF2F2; --color-b-light: #E0FAF8; --shadow: 0 4px 10px rgba(0,0,0,0.03); }
     * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
     body { background: var(--bg-color); font-family: -apple-system, sans-serif; color: var(--text-main); font-size: 14px; }
-    
-    /* ヘッダー固定 */
     .header { position: sticky; top: 0; background: #fff; display: flex; justify-content: space-between; align-items: center; padding: 10px 15px; border-bottom: 1px solid #eee; z-index: 100; box-shadow: 0 2px 5px rgba(0,0,0,0.02); }
     .header-title { font-weight: bold; font-size: 15px; color: #555; cursor: pointer; }
     .header-btns { display: flex; gap: 12px; }
     .icon-btn { background: none; border: none; font-size: 20px; cursor: pointer; padding: 5px; color: #888; }
-
     .main-content { padding: 15px; max-width: 500px; margin: 0 auto; }
     .card { background: var(--card-bg); padding: 12px; border-radius: 16px; box-shadow: var(--shadow); margin-bottom: 12px; }
     .title { font-size: 14px; font-weight: bold; margin-bottom: 12px; color: #666; display: flex; align-items: center; gap: 5px; }
-    
-    /* スコア表示（よりコンパクトに） */
     .score-container { display: flex; gap: 10px; margin-bottom: 12px; }
     .score-card { flex: 1; display: flex; align-items: center; justify-content: center; gap: 8px; padding: 10px; border-radius: 14px; }
     .score-card.a { background: var(--color-a-light); border: 1px solid rgba(255,127,127,0.1); }
     .score-card.b { background: var(--color-b-light); border: 1px solid rgba(100,210,200,0.1); }
     .score-pfp { width: 32px; height: 32px; border-radius: 50%; border: 2px solid #fff; }
     .score-points { font-size: 20px; font-weight: 900; }
-    
-    /* プログレスバー（細くスマートに） */
     .progress-container { background: #eee; height: 4px; border-radius: 2px; overflow: hidden; margin: 0 5px 20px 5px; display: flex; }
-    
-    /* 家事リストUI（シンプル化） */
     .task-card { display: flex; align-items: center; padding: 10px 15px; gap: 12px; transition: transform 0.1s; }
-    .task-card:active { transform: scale(0.98); }
     .task-icon { font-size: 22px; width: 30px; text-align: center; }
     .task-info { flex: 1; }
     .task-name { font-weight: bold; font-size: 14px; margin-bottom: 2px; }
     .task-weight { font-size: 10px; color: var(--text-sub); }
     .btn-group { display: flex; gap: 8px; }
-    .btn-log { min-width: 44px; height: 36px; border: none; border-radius: 10px; color: white; font-weight: bold; font-size: 13px; cursor: pointer; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
-
-    /* 履歴と設定 */
+    .btn-log { min-width: 44px; height: 36px; border: none; border-radius: 10px; color: white; font-weight: bold; font-size: 13px; cursor: pointer; }
     .log-item { display: flex; justify-content: space-between; align-items: center; padding: 10px 0; border-bottom: 1px solid #f9f9f9; font-size: 12px; }
     .btn-del { color: #ccc; background: none; border: none; font-size: 18px; padding: 5px; }
     .form-input { width: 100%; padding: 10px; margin-bottom: 10px; border-radius: 10px; border: 1px solid #eee; background: #fafafa; font-size: 13px; }
-    
     .modal { position: fixed; inset: 0; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; padding: 20px; z-index: 1000; }
   </style>
 </head>
@@ -68,28 +55,44 @@
         fetch(GAS_URL).then(r => r.json()).then(d => {
           const names = { A: "A", B: "B" };
           if (d.names) d.names.forEach(n => { if(n.id == 1) names.A = n.name; if(n.id == 2) names.B = n.name; });
-          // pointが0になるのを防ぐため、読み込み時に型を確認
           const tasks = (d.tasks || []).map(t => ({...t, weight: Number(t.weight)}));
           const logs = (d.logs || []).map(l => ({...l, weight: Number(l.weight)}));
           setData({ tasks, logs, names });
           setLoaded(true);
-        }).catch(e => console.error("Load Error:", e));
+        }).catch(e => { console.error("Load Error:", e); setLoaded(true); });
       };
       useEffect(() => { load(); }, []);
 
+      // リアルタイム反映（楽観的更新）を統合したアクション関数
       const action = (act, pay) => {
+        // --- UI側のデータを即座に更新 ---
+        setData(prev => {
+          const newData = { ...prev };
+          if (act === 'addLog') {
+            newData.logs = [pay.data, ...prev.logs];
+          } else if (act === 'deleteLog') {
+            newData.logs = prev.logs.filter(l => String(l.time) !== String(pay.time));
+          } else if (act === 'addTask') {
+            const tempTask = { ...pay.data, id: Date.now().toString() }; // 仮のID
+            newData.tasks = [...prev.tasks, tempTask];
+          } else if (act === 'deleteTask') {
+            newData.tasks = prev.tasks.filter(t => String(t.id) !== String(pay.id));
+          }
+          return newData;
+        });
+
+        // --- GASへの通信 (裏で実行) ---
         return fetch(GAS_URL, { method: "POST", mode: "no-cors", body: JSON.stringify({ action: act, ...pay }) })
-          .then(() => { if(act !== 'addLog') load(); });
+          .then(() => { 
+            // 整合性を保つため、タスク追加・削除の後は正式なデータを再読込
+            if (act === 'addTask' || act === 'deleteTask') load(); 
+          });
       };
 
       const logTask = (tid, p) => {
         const t = data.tasks.find(x => String(x.id) === String(tid));
         if (!t) return;
-
-        const w = Number(t.weight) || 0; // ここで0にならないよう再度チェック
-        const newL = { taskId: tid, person: p, weight: w, time: Date.now() };
-
-        setData(prev => ({ ...prev, logs: [newL, ...prev.logs] }));
+        const newL = { taskId: tid, person: p, weight: Number(t.weight) || 0, time: Date.now() };
         action("addLog", { data: newL });
       };
 
@@ -101,12 +104,11 @@
 
       return (
         <div>
-          {/* 右上配置のヘッダー */}
           <div className="header">
             <div className="header-title" onClick={() => setView("home")}>🏠 おうちクン</div>
             <div className="header-btns">
-              <button className="icon-btn" onClick={() => setView("history")} title="履歴">📊</button>
-              <button className="icon-btn" onClick={() => setView("settings")} title="設定">⚙️</button>
+              <button className="icon-btn" onClick={() => setView("history")}>📊</button>
+              <button className="icon-btn" onClick={() => setView("settings")}>⚙️</button>
             </div>
           </div>
 
@@ -145,7 +147,7 @@
                         <b style={{color: l.person==='A'?'var(--color-a)':'var(--color-b)'}}>{data.names[l.person]}</b> {t.icon} {t.name} (+{l.weight})
                         <div style={{fontSize:9, color:'#ccc'}}>{new Date(l.time).toLocaleString()}</div>
                       </div>
-                      <button className="btn-del" onClick={()=>{if(confirm('削除？')) action('deleteLog',{time:l.time})}}>×</button>
+                      <button className="btn-del" onClick={()=>{if(confirm('ログを削除しますか？')) action('deleteLog',{time:l.time})}}>×</button>
                     </div>
                   );
                 })}
@@ -177,8 +179,8 @@
             <div className="modal"><div className="card" style={{width:'85%', maxWidth:'320px'}}>
               <div className="title">家事の登録</div>
               <input className="form-input" placeholder="アイコン(絵文字)" value={editing.icon} onChange={e=>setEditing({...editing,icon:e.target.value})} />
-              <input className="form-input" placeholder="名前 (例: 料理)" value={editing.name} onChange={e=>setEditing({...editing,name:e.target.value})} />
-              <input className="form-input" type="number" placeholder="ポイント (例: 3)" value={editing.weight} onChange={e=>setEditing({...editing,weight:e.target.value})} />
+              <input className="form-input" placeholder="名前" value={editing.name} onChange={e=>setEditing({...editing,name:e.target.value})} />
+              <input className="form-input" type="number" placeholder="ポイント" value={editing.weight} onChange={e=>setEditing({...editing,weight:e.target.value})} />
               <div style={{display:'flex', gap:10}}>
                 <button className="form-input" style={{flex:1, background:'#eee', border:'none'}} onClick={()=>setEditing(null)}>キャンセル</button>
                 <button className="form-input" style={{flex:1, background:'#555', color:'white', border:'none'}} onClick={()=>{action('addTask',{data:editing}); setEditing(null)}}>保存</button>
