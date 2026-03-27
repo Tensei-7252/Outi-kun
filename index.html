@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-  <title>おうちクン v3.4</title>
+  <title>おうちクン v3.5</title>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
@@ -17,7 +17,12 @@
     .icon-btn { background: none; border: none; font-size: 20px; cursor: pointer; padding: 5px; color: #888; }
     .main-content { padding: 15px; max-width: 500px; margin: 0 auto; }
     .card { background: var(--card-bg); padding: 12px; border-radius: 16px; box-shadow: var(--shadow); margin-bottom: 12px; }
-    .title { font-size: 14px; font-weight: bold; margin-bottom: 12px; color: #666; display: flex; align-items: center; gap: 5px; }
+    .title-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+    .title { font-size: 14px; font-weight: bold; color: #666; display: flex; align-items: center; gap: 5px; }
+    
+    /* フィルターのスタイル */
+    .filter-select { border: 1px solid #eee; background: #fafafa; padding: 4px 8px; border-radius: 8px; font-size: 12px; color: #666; outline: none; }
+
     .score-container { display: flex; gap: 10px; margin-bottom: 12px; }
     .score-card { flex: 1; display: flex; align-items: center; justify-content: center; gap: 8px; padding: 10px; border-radius: 14px; }
     .score-card.a { background: var(--color-a-light); border: 1px solid rgba(255,127,127,0.1); }
@@ -25,13 +30,13 @@
     .score-pfp { width: 32px; height: 32px; border-radius: 50%; border: 2px solid #fff; }
     .score-points { font-size: 20px; font-weight: 900; }
     .progress-container { background: #eee; height: 4px; border-radius: 2px; overflow: hidden; margin: 0 5px 20px 5px; display: flex; }
-    .task-card { display: flex; align-items: center; padding: 10px 15px; gap: 12px; transition: transform 0.1s; }
+    .task-card { display: flex; align-items: center; padding: 10px 15px; gap: 12px; }
     .task-icon { font-size: 22px; width: 30px; text-align: center; }
     .task-info { flex: 1; }
     .task-name { font-weight: bold; font-size: 14px; margin-bottom: 2px; }
     .task-weight { font-size: 10px; color: var(--text-sub); }
     .btn-group { display: flex; gap: 8px; }
-    .btn-log { min-width: 44px; height: 36px; border: none; border-radius: 10px; color: white; font-weight: bold; font-size: 13px; cursor: pointer; }
+    .btn-log { min-width: 44px; height: 36px; border: none; border-radius: 10px; color: white; font-weight: bold; font-size: 13px; }
     .log-item { display: flex; justify-content: space-between; align-items: center; padding: 10px 0; border-bottom: 1px solid #f9f9f9; font-size: 12px; }
     .btn-del { color: #ccc; background: none; border: none; font-size: 18px; padding: 5px; }
     .form-input { width: 100%; padding: 10px; margin-bottom: 10px; border-radius: 10px; border: 1px solid #eee; background: #fafafa; font-size: 13px; }
@@ -50,6 +55,7 @@
       const [view, setView] = useState("home");
       const [loaded, setLoaded] = useState(false);
       const [editing, setEditing] = useState(null);
+      const [filterRange, setFilterRange] = useState("1month"); // デフォルト1ヶ月
 
       const load = () => {
         fetch(GAS_URL).then(r => r.json()).then(d => {
@@ -63,41 +69,33 @@
       };
       useEffect(() => { load(); }, []);
 
-      // リアルタイム反映（楽観的更新）を統合したアクション関数
       const action = (act, pay) => {
-        // --- UI側のデータを即座に更新 ---
         setData(prev => {
           const newData = { ...prev };
-          if (act === 'addLog') {
-            newData.logs = [pay.data, ...prev.logs];
-          } else if (act === 'deleteLog') {
-            newData.logs = prev.logs.filter(l => String(l.time) !== String(pay.time));
-          } else if (act === 'addTask') {
-            const tempTask = { ...pay.data, id: Date.now().toString() }; // 仮のID
-            newData.tasks = [...prev.tasks, tempTask];
-          } else if (act === 'deleteTask') {
-            newData.tasks = prev.tasks.filter(t => String(t.id) !== String(pay.id));
-          }
+          if (act === 'addLog') newData.logs = [pay.data, ...prev.logs];
+          else if (act === 'deleteLog') newData.logs = prev.logs.filter(l => String(l.time) !== String(pay.time));
+          else if (act === 'addTask') newData.tasks = [...prev.tasks, { ...pay.data, id: Date.now().toString() }];
+          else if (act === 'deleteTask') newData.tasks = prev.tasks.filter(t => String(t.id) !== String(pay.id));
           return newData;
         });
-
-        // --- GASへの通信 (裏で実行) ---
         return fetch(GAS_URL, { method: "POST", mode: "no-cors", body: JSON.stringify({ action: act, ...pay }) })
-          .then(() => { 
-            // 整合性を保つため、タスク追加・削除の後は正式なデータを再読込
-            if (act === 'addTask' || act === 'deleteTask') load(); 
-          });
+          .then(() => { if (act === 'addTask' || act === 'deleteTask') load(); });
       };
 
-      const logTask = (tid, p) => {
-        const t = data.tasks.find(x => String(x.id) === String(tid));
-        if (!t) return;
-        const newL = { taskId: tid, person: p, weight: Number(t.weight) || 0, time: Date.now() };
-        action("addLog", { data: newL });
-      };
+      // フィルター処理を適用したログ
+      const filteredLogs = useMemo(() => {
+        if (filterRange === "all") return data.logs;
+        const now = Date.now();
+        const ranges = {
+          "1week": 7 * 24 * 60 * 60 * 1000,
+          "1month": 30 * 24 * 60 * 60 * 1000,
+          "3month": 90 * 24 * 60 * 60 * 1000
+        };
+        return data.logs.filter(l => (now - Number(l.time)) < ranges[filterRange]);
+      }, [data.logs, filterRange]);
 
-      const pA = useMemo(() => data.logs.filter(l => l.person === "A").reduce((s, l) => s + Number(l.weight || 0), 0), [data.logs]);
-      const pB = useMemo(() => data.logs.filter(l => l.person === "B").reduce((s, l) => s + Number(l.weight || 0), 0), [data.logs]);
+      const pA = useMemo(() => filteredLogs.filter(l => l.person === "A").reduce((s, l) => s + Number(l.weight || 0), 0), [filteredLogs]);
+      const pB = useMemo(() => filteredLogs.filter(l => l.person === "B").reduce((s, l) => s + Number(l.weight || 0), 0), [filteredLogs]);
       const ratioA = (pA + pB) === 0 ? 50 : (pA / (pA + pB)) * 100;
 
       if (!loaded) return <div style={{textAlign:'center', padding:'100px', color:'#ccc'}}>...</div>;
@@ -123,13 +121,16 @@
                   <div style={{width: ratioA+'%', background:'var(--color-a)', transition:'width 0.5s'}} />
                   <div style={{width: (100-ratioA)+'%', background:'var(--color-b)', transition:'width 0.5s'}} />
                 </div>
+                <div style={{fontSize:10, color:'#bbb', textAlign:'center', marginBottom:10}}>
+                  表示期間: {filterRange === "all" ? "全期間" : filterRange === "1month" ? "直近1ヶ月" : filterRange === "1week" ? "直近1週間" : "直近3ヶ月"}
+                </div>
                 {data.tasks.map(t => (
                   <div key={t.id} className="card task-card">
                     <div className="task-icon">{t.icon}</div>
                     <div className="task-info"><div className="task-name">{t.name}</div><div className="task-weight">{t.weight}pt</div></div>
                     <div className="btn-group">
-                      <button className="btn-log" style={{background:'var(--color-a)'}} onClick={()=>logTask(t.id,"A")}>{data.names.A[0]}</button>
-                      <button className="btn-log" style={{background:'var(--color-b)'}} onClick={()=>logTask(t.id,"B")}>{data.names.B[0]}</button>
+                      <button className="btn-log" style={{background:'var(--color-a)'}} onClick={()=>action("addLog", {data: {taskId: t.id, person: "A", weight: t.weight, time: Date.now()}})}>{data.names.A[0]}</button>
+                      <button className="btn-log" style={{background:'var(--color-b)'}} onClick={()=>action("addLog", {data: {taskId: t.id, person: "B", weight: t.weight, time: Date.now()}})}>{data.names.B[0]}</button>
                     </div>
                   </div>
                 ))}
@@ -138,19 +139,29 @@
 
             {view === "history" && (
               <div className="card">
-                <div className="title">📊 最近の履歴</div>
-                {data.logs.slice(0, 30).map((l, i) => {
-                  const t = data.tasks.find(x => String(x.id) === String(l.taskId)) || {name:'不明', icon:'❓'};
-                  return (
-                    <div key={i} className="log-item">
-                      <div>
-                        <b style={{color: l.person==='A'?'var(--color-a)':'var(--color-b)'}}>{data.names[l.person]}</b> {t.icon} {t.name} (+{l.weight})
-                        <div style={{fontSize:9, color:'#ccc'}}>{new Date(l.time).toLocaleString()}</div>
+                <div className="title-row">
+                  <div className="title">📊 最近の履歴</div>
+                  <select className="filter-select" value={filterRange} onChange={e => setFilterRange(e.target.value)}>
+                    <option value="1week">1週間</option>
+                    <option value="1month">1ヶ月</option>
+                    <option value="3month">3ヶ月</option>
+                    <option value="all">すべて</option>
+                  </select>
+                </div>
+                {filteredLogs.length === 0 ? <p style={{textAlign:'center', padding:20, color:'#ccc'}}>対象期間の履歴はありません</p> : 
+                  filteredLogs.slice(0, 50).map((l, i) => {
+                    const t = data.tasks.find(x => String(x.id) === String(l.taskId)) || {name:'不明', icon:'❓'};
+                    return (
+                      <div key={i} className="log-item">
+                        <div>
+                          <b style={{color: l.person==='A'?'var(--color-a)':'var(--color-b)'}}>{data.names[l.person]}</b> {t.icon} {t.name} (+{l.weight})
+                          <div style={{fontSize:9, color:'#ccc'}}>{new Date(Number(l.time)).toLocaleString()}</div>
+                        </div>
+                        <button className="btn-del" onClick={()=>{if(confirm('削除しますか？')) action('deleteLog',{time:l.time})}}>×</button>
                       </div>
-                      <button className="btn-del" onClick={()=>{if(confirm('ログを削除しますか？')) action('deleteLog',{time:l.time})}}>×</button>
-                    </div>
-                  );
-                })}
+                    );
+                  })
+                }
               </div>
             )}
 
