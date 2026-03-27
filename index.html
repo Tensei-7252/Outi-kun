@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-  <title>おうちクン v2.5</title>
+  <title>おうちクン v2.6</title>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
@@ -34,6 +34,7 @@
     .filter-input { flex: 1; padding: 8px; border-radius: 8px; border: 1px solid #ddd; font-size: 14px; }
     .delete-log-btn { border: none; background: none; color: #ddd; cursor: pointer; font-size: 18px; padding: 5px; }
     .modal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); display: flex; justify-content: center; align-items: center; z-index: 100; padding: 20px; }
+    .loading { text-align: center; padding: 100px; color: #888; font-size: 14px; }
   </style>
 </head>
 <body>
@@ -49,8 +50,13 @@
       const [loaded, setLoaded] = useState(false);
       const [editing, setEditing] = useState(null);
 
-      // --- 日付の初期設定：今日から1ヶ月前 ---
-      const getFormattedDate = (date) => date.toISOString().split('T')[0];
+      const getFormattedDate = (date) => {
+        const y = date.getFullYear();
+        const m = String(date.getMonth() + 1).padStart(2, '0');
+        const d = String(date.getDate()).padStart(2, '0');
+        return `${y}-${m}-${d}`;
+      };
+
       const today = new Date();
       const lastMonth = new Date();
       lastMonth.setMonth(today.getMonth() - 1);
@@ -59,36 +65,56 @@
       const [endDate, setEndDate] = useState(getFormattedDate(today));
 
       const fetchData = () => {
-        fetch(GAS_URL).then(r => r.json()).then(d => {
-          const n = { A: "天誠", B: "彩香" };
-          if (d.names) d.names.forEach(x => { if(x.id == 1) n.A = x.name; if(x.id == 2) n.B = x.name; });
-          // 数値変換を確実に行う
-          const validLogs = (d.logs || []).map(l => ({ ...l, time: Number(l.time), weight: Number(l.weight) }));
-          setData({ tasks: d.tasks || [], logs: validLogs, names: n });
-          setLoaded(true);
-        }).catch(err => { console.error(err); setLoaded(true); });
+        fetch(GAS_URL)
+          .then(r => r.json())
+          .then(d => {
+            const n = { A: "天誠", B: "彩香" };
+            if (d.names) d.names.forEach(x => { if(x.id == 1) n.A = x.name; if(x.id == 2) n.B = x.name; });
+            
+            // 安全なデータ変換
+            const safeTasks = (d.tasks || []).map(t => ({
+              id: t.id || Date.now(),
+              icon: t.icon || '✨',
+              name: t.name || '無題',
+              weight: Number(t.weight) || 0
+            }));
+
+            const safeLogs = (d.logs || []).map(l => ({
+              taskId: l.taskId,
+              person: l.person,
+              weight: Number(l.weight) || 0,
+              time: Number(l.time) || Date.now()
+            }));
+
+            setData({ tasks: safeTasks, logs: safeLogs, names: n });
+            setLoaded(true);
+          })
+          .catch(err => {
+            console.error("Fetch Error:", err);
+            setLoaded(true);
+          });
       };
 
       useEffect(() => { fetchData(); }, []);
       useEffect(() => { localStorage.setItem("pfp_A", pfps.A); localStorage.setItem("pfp_B", pfps.B); }, [pfps]);
 
       const handleAction = (action, payload) => {
-        // POSTの後に必ず再読み込みを行うようにし、安定性を向上
         fetch(GAS_URL, { method: "POST", mode: "no-cors", body: JSON.stringify({ action, ...payload }) })
-          .then(() => { 
-            setTimeout(fetchData, 800); // GAS側の反映時間を考慮して少し待つ
+          .then(() => {
+            // POST後に少し待ってからデータを再取得
+            setTimeout(fetchData, 1000);
           });
       };
 
       const logTask = (tid, p) => {
         const t = data.tasks.find(x => x.id == tid);
+        if (!t) return;
         const l = { taskId: tid, person: p, weight: Number(t.weight), time: Date.now() };
-        // ローカルの状態を先に更新（即時反映）
+        // UI上は即座に反映させてサクサク感を出す
         setData(prev => ({ ...prev, logs: [l, ...prev.logs] }));
         handleAction("addLog", { target: "logs", data: l });
       };
 
-      // フィルター：開始日の0:00 〜 終了日の23:59まで
       const filteredLogs = useMemo(() => {
         if (!data.logs) return [];
         const start = new Date(startDate + "T00:00:00").getTime();
@@ -102,7 +128,7 @@
       const ptsB = data.logs.filter(l => l.person === "B").reduce((s, l) => s + l.weight, 0);
       const ratioA = (ptsA + ptsB) === 0 ? 50 : (ptsA / (ptsA + ptsB)) * 100;
 
-      if (!loaded) return <div style={{textAlign:'center', padding:'100px'}}>読み込み中...</div>;
+      if (!loaded) return <div className="loading">データを読み込み中...<br/>時間がかかる場合は再読み込みしてください。</div>;
 
       if (view === "history") {
         return (
@@ -115,9 +141,9 @@
                   <span style={{alignSelf:'center'}}>〜</span>
                   <input type="date" className="filter-input" value={endDate} onChange={e=>setEndDate(e.target.value)} />
                 </div>
-                {filteredLogs.length === 0 ? <p style={{textAlign:'center', color:'#ccc', padding:'20px'}}>この期間のログはありません</p> : 
+                {filteredLogs.length === 0 ? <p style={{textAlign:'center', color:'#ccc', padding:'20px'}}>ログがありません</p> : 
                   filteredLogs.map((l, i) => {
-                    const task = data.tasks.find(t => t.id == l.taskId) || {name:'削除された家事', icon:'❓'};
+                    const task = data.tasks.find(t => t.id == l.taskId) || {name:'削除済みの家事', icon:'❓'};
                     return (
                       <div key={l.time + i} className="history-item">
                         <div style={{flex: 1}}>
@@ -155,9 +181,9 @@
                 <div style={{display:'flex', justifyContent:'space-between', marginBottom: 15}}><h4>🍳 家事管理</h4><button onClick={()=>setEditing({icon:'✨', name:'', weight:3})} style={{color:'blue', border:'none', background:'none'}}>＋追加</button></div>
                 {data.tasks.map(t => (
                   <div key={t.id} style={{display:'flex', alignItems:'center', padding:'10px 0', borderBottom:'1px solid #eee'}}>
-                    <span style={{flex:1}}>{t.icon} {t.name} ({t.weight}pt)</span>
-                    <button onClick={()=>setEditing(t)} style={{marginRight:10, color:'blue', border:'none', background:'none'}}>編集</button>
-                    <button onClick={() => { if(confirm('削除？')) handleAction("deleteTask", {id: t.id}); }} style={{color:'red', border:'none', background:'none'}}>削除</button>
+                    <span style={{flex:1, fontSize:'14px'}}>{t.icon} {t.name} ({t.weight}pt)</span>
+                    <button onClick={()=>setEditing(t)} style={{marginRight:10, color:'blue', border:'none', background:'none', fontSize:'13px'}}>編集</button>
+                    <button onClick={() => { if(confirm('削除？')) handleAction("deleteTask", {id: t.id}); }} style={{color:'red', border:'none', background:'none', fontSize:'13px'}}>削除</button>
                   </div>
                 ))}
               </div>
@@ -189,11 +215,13 @@
               </div>
             </div>
             <div className="progress-container"><div style={{width: ratioA+"%", background:'var(--color-a)'}} /><div style={{width: (100-ratioA)+"%", background:'var(--color-b)'}} /></div>
-            {data.tasks.map(t => (
-              <div key={t.id} className="card task-card"><span className="task-icon">{t.icon}</span><div className="task-info"><b>{t.name}</b><br/><small>{t.weight}pt</small></div>
-                <div className="btn-group"><button className="log-btn" style={{background:'var(--color-a)'}} onClick={()=>logTask(t.id, "A")}>{data.names.A[0]}</button><button className="log-btn" style={{background:'var(--color-b)'}} onClick={()=>logTask(t.id, "B")}>{data.names.B[0]}</button></div>
-              </div>
-            ))}
+            {data.tasks.length === 0 ? <p style={{textAlign:'center', color:'#888'}}>設定から家事を追加してください</p> : 
+              data.tasks.map(t => (
+                <div key={t.id} className="card task-card"><span className="task-icon">{t.icon}</span><div className="task-info"><b>{t.name}</b><br/><small>{t.weight}pt</small></div>
+                  <div className="btn-group"><button className="log-btn" style={{background:'var(--color-a)'}} onClick={()=>logTask(t.id, "A")}>{data.names.A[0]}</button><button className="log-btn" style={{background:'var(--color-b)'}} onClick={()=>logTask(t.id, "B")}>{data.names.B[0]}</button></div>
+                </div>
+              ))
+            }
           </div>
         </div>
       );
