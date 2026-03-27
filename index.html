@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-  <title>おうちクン v2.4</title>
+  <title>おうちクン v2.5</title>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
@@ -27,13 +27,12 @@
     .task-info { flex: 1; }
     .btn-group { display: flex; gap: 8px; }
     .log-btn { border: none; padding: 10px 18px; border-radius: 12px; cursor: pointer; font-weight: bold; color: #fff; }
-    .form-input { width: 100%; padding: 12px; margin: 5px 0; border-radius: 12px; border: 1px solid #E0E0E0; background: #F8F9FA; }
+    .form-input { width: 100%; padding: 12px; margin: 5px 0; border-radius: 12px; border: 1px solid #E0E0E0; background: #F8F9FA; font-size: 14px; }
     .history-item { display: flex; justify-content: space-between; align-items: center; padding: 12px 0; border-bottom: 1px solid #f0f0f0; font-size: 14px; }
     .history-date { font-size: 11px; color: var(--text-sub); }
     .filter-group { display: flex; gap: 10px; margin-bottom: 15px; }
-    .filter-input { flex: 1; padding: 8px; border-radius: 8px; border: 1px solid #ddd; font-size: 12px; }
-    .delete-log-btn { border: none; background: none; color: #ccc; cursor: pointer; font-size: 16px; padding: 5px; margin-left: 10px; }
-    .delete-log-btn:hover { color: #FF4D4F; }
+    .filter-input { flex: 1; padding: 8px; border-radius: 8px; border: 1px solid #ddd; font-size: 14px; }
+    .delete-log-btn { border: none; background: none; color: #ddd; cursor: pointer; font-size: 18px; padding: 5px; }
     .modal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); display: flex; justify-content: center; align-items: center; z-index: 100; padding: 20px; }
   </style>
 </head>
@@ -50,44 +49,57 @@
       const [loaded, setLoaded] = useState(false);
       const [editing, setEditing] = useState(null);
 
-      const oneMonthAgo = new Date();
-      oneMonthAgo.setMonth(oneMonthAgo.getMonth() - 1);
-      const [startDate, setStartDate] = useState(oneMonthAgo.toISOString().split('T')[0]);
-      const [endDate, setEndDate] = useState(new Date().toISOString().split('T')[0]);
+      // --- 日付の初期設定：今日から1ヶ月前 ---
+      const getFormattedDate = (date) => date.toISOString().split('T')[0];
+      const today = new Date();
+      const lastMonth = new Date();
+      lastMonth.setMonth(today.getMonth() - 1);
+
+      const [startDate, setStartDate] = useState(getFormattedDate(lastMonth));
+      const [endDate, setEndDate] = useState(getFormattedDate(today));
 
       const fetchData = () => {
         fetch(GAS_URL).then(r => r.json()).then(d => {
           const n = { A: "天誠", B: "彩香" };
           if (d.names) d.names.forEach(x => { if(x.id == 1) n.A = x.name; if(x.id == 2) n.B = x.name; });
-          setData({ tasks: d.tasks || [], logs: d.logs || [], names: n });
+          // 数値変換を確実に行う
+          const validLogs = (d.logs || []).map(l => ({ ...l, time: Number(l.time), weight: Number(l.weight) }));
+          setData({ tasks: d.tasks || [], logs: validLogs, names: n });
           setLoaded(true);
-        }).catch(() => setLoaded(true));
+        }).catch(err => { console.error(err); setLoaded(true); });
       };
 
       useEffect(() => { fetchData(); }, []);
       useEffect(() => { localStorage.setItem("pfp_A", pfps.A); localStorage.setItem("pfp_B", pfps.B); }, [pfps]);
 
       const handleAction = (action, payload) => {
+        // POSTの後に必ず再読み込みを行うようにし、安定性を向上
         fetch(GAS_URL, { method: "POST", mode: "no-cors", body: JSON.stringify({ action, ...payload }) })
-          .then(() => { fetchData(); });
+          .then(() => { 
+            setTimeout(fetchData, 800); // GAS側の反映時間を考慮して少し待つ
+          });
       };
 
       const logTask = (tid, p) => {
         const t = data.tasks.find(x => x.id == tid);
         const l = { taskId: tid, person: p, weight: Number(t.weight), time: Date.now() };
+        // ローカルの状態を先に更新（即時反映）
+        setData(prev => ({ ...prev, logs: [l, ...prev.logs] }));
         handleAction("addLog", { target: "logs", data: l });
       };
 
+      // フィルター：開始日の0:00 〜 終了日の23:59まで
       const filteredLogs = useMemo(() => {
-        const start = new Date(startDate).getTime();
-        const end = new Date(endDate).getTime() + 86400000;
-        return [...data.logs]
+        if (!data.logs) return [];
+        const start = new Date(startDate + "T00:00:00").getTime();
+        const end = new Date(endDate + "T23:59:59").getTime();
+        return data.logs
           .filter(l => l.time >= start && l.time <= end)
           .sort((a, b) => b.time - a.time);
       }, [data.logs, startDate, endDate]);
 
-      const ptsA = data.logs.filter(l => l.person === "A").reduce((s, l) => s + Number(l.weight), 0);
-      const ptsB = data.logs.filter(l => l.person === "B").reduce((s, l) => s + Number(l.weight), 0);
+      const ptsA = data.logs.filter(l => l.person === "A").reduce((s, l) => s + l.weight, 0);
+      const ptsB = data.logs.filter(l => l.person === "B").reduce((s, l) => s + l.weight, 0);
       const ratioA = (ptsA + ptsB) === 0 ? 50 : (ptsA / (ptsA + ptsB)) * 100;
 
       if (!loaded) return <div style={{textAlign:'center', padding:'100px'}}>読み込み中...</div>;
@@ -103,22 +115,20 @@
                   <span style={{alignSelf:'center'}}>〜</span>
                   <input type="date" className="filter-input" value={endDate} onChange={e=>setEndDate(e.target.value)} />
                 </div>
-                {filteredLogs.length === 0 ? <p style={{textAlign:'center', color:'#ccc'}}>ログがありません</p> : 
+                {filteredLogs.length === 0 ? <p style={{textAlign:'center', color:'#ccc', padding:'20px'}}>この期間のログはありません</p> : 
                   filteredLogs.map((l, i) => {
-                    const task = data.tasks.find(t => t.id == l.taskId) || {name:'不明', icon:'❓'};
+                    const task = data.tasks.find(t => t.id == l.taskId) || {name:'削除された家事', icon:'❓'};
                     return (
-                      <div key={i} className="history-item">
-                        <div style={{flex: 1, display: 'flex', alignItems: 'center'}}>
-                          <div style={{flex: 1}}>
-                            <span style={{fontWeight:'bold', color: l.person === 'A' ? 'var(--color-a)' : 'var(--color-b)'}}>
-                              {data.names[l.person]}
-                            </span>
+                      <div key={l.time + i} className="history-item">
+                        <div style={{flex: 1}}>
+                          <div>
+                            <span style={{fontWeight:'bold', color: l.person === 'A' ? 'var(--color-a)' : 'var(--color-b)'}}>{data.names[l.person]}</span>
                             <span style={{marginLeft:10}}>{task.icon} {task.name}</span>
-                            <div className="history-date">{new Date(l.time).toLocaleString('ja-JP')}</div>
                           </div>
-                          <div style={{textAlign:'right', marginLeft: 10}}>
-                            <div style={{fontWeight:'bold'}}>+{l.weight}pt</div>
-                          </div>
+                          <div className="history-date">{new Date(l.time).toLocaleString('ja-JP')}</div>
+                        </div>
+                        <div style={{textAlign:'right', display:'flex', alignItems:'center', gap:10}}>
+                          <div style={{fontWeight:'bold'}}>+{l.weight}</div>
                           <button className="delete-log-btn" onClick={() => { if(confirm('この記録を削除しますか？')) handleAction("deleteLog", {time: l.time}); }}>🗑️</button>
                         </div>
                       </div>
