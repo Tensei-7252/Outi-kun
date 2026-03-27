@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-  <title>おうちクン v2.8</title>
+  <title>おうちクン v2.9</title>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
@@ -15,20 +15,33 @@
     .header-title { font-size: 18px; font-weight: bold; color: #444; }
     .header-btns { display: flex; gap: 15px; }
     .icon-btn { font-size: 22px; cursor: pointer; background: none; border: none; color: #888; padding: 5px; }
-    .main-content { padding: 15px; max-width: 500px; margin: 0 auto; }
+    .main-content { padding: 20px; max-width: 500px; margin: 0 auto; }
     .card { background: var(--card-bg); padding: 18px; border-radius: 24px; box-shadow: var(--shadow); margin-bottom: 16px; border: 1px solid rgba(0,0,0,0.02); }
+    
+    /* スコア表示 */
     .score-container { display: flex; gap: 12px; margin-bottom: 20px; }
-    .score-card { flex: 1; text-align: center; padding: 15px; border-radius: 20px; }
+    .score-card { flex: 1; text-align: center; padding: 15px; border-radius: 20px; transition: all 0.3s ease; }
     .score-pfp { width: 55px; height: 55px; border-radius: 50%; object-fit: cover; border: 3px solid #fff; background: #eee; margin-bottom: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
-    .score-points { font-size: 28px; font-weight: 900; }
-    .progress-container { background: #E9ECEF; height: 10px; border-radius: 5px; overflow: hidden; margin-bottom: 25px; display: flex; }
-    .task-card { display: flex; align-items: center; padding: 12px 15px; }
-    .task-icon { font-size: 24px; margin-right: 12px; }
+    .score-points { font-size: 30px; font-weight: 900; }
+    
+    /* 割合グラフ */
+    .progress-container { background: #E9ECEF; height: 12px; border-radius: 6px; overflow: hidden; margin-bottom: 25px; display: flex; box-shadow: inset 0 1px 2px rgba(0,0,0,0.1); }
+    .progress-bar { transition: width 0.5s cubic-bezier(0.4, 0, 0.2, 1); }
+
+    /* 家事カード（旧UI復旧） */
+    .task-card { display: flex; align-items: center; padding: 15px 18px; }
+    .task-icon { font-size: 28px; margin-right: 15px; }
     .task-info { flex: 1; }
-    .btn-group { display: flex; gap: 6px; }
-    .log-btn { border: none; padding: 8px 14px; border-radius: 10px; cursor: pointer; font-weight: bold; color: #fff; font-size: 14px; }
-    .history-item { display: flex; justify-content: space-between; align-items: center; padding: 10px 0; border-bottom: 1px solid #f5f5f5; font-size: 13px; }
-    .form-input { width: 100%; padding: 12px; margin: 8px 0; border-radius: 12px; border: 1px solid #ddd; background: #fdfdfd; font-size: 14px; }
+    .task-info b { font-size: 16px; color: #333; }
+    .task-info small { color: var(--text-sub); font-size: 12px; }
+    
+    .btn-group { display: flex; gap: 8px; }
+    .log-btn { border: none; padding: 10px 18px; border-radius: 12px; cursor: pointer; font-weight: bold; color: #fff; font-size: 15px; transition: transform 0.1s; }
+    .log-btn:active { transform: scale(0.95); }
+
+    /* 履歴・設定 */
+    .history-item { display: flex; justify-content: space-between; align-items: center; padding: 12px 0; border-bottom: 1px solid #f5f5f5; }
+    .form-input { width: 100%; padding: 12px; margin: 8px 0; border-radius: 12px; border: 1px solid #ddd; background: #fdfdfd; }
     .modal { position: fixed; inset: 0; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; z-index: 100; padding: 20px; }
     .loading-screen { text-align: center; padding-top: 100px; color: #999; }
   </style>
@@ -68,26 +81,34 @@
 
       const handleAction = async (action, payload) => {
         await fetch(GAS_URL, { method: "POST", mode: "no-cors", body: JSON.stringify({ action, ...payload }) });
-        setTimeout(fetchData, 1000);
+        // サーバー側の書き込み完了を待たずに数秒後に同期
+        setTimeout(fetchData, 2000);
       };
 
       const logTask = (tid, p) => {
         const t = data.tasks.find(x => x.id === tid);
         if (!t) return;
-        const l = { taskId: tid, person: p, weight: t.weight, time: Date.now() };
-        setData(prev => ({ ...prev, logs: [l, ...prev.logs] }));
-        handleAction("addLog", { target: "logs", data: l });
+        
+        // --- リアルタイム反映（楽観的更新） ---
+        const newLog = { taskId: tid, person: p, weight: t.weight, time: Date.now() };
+        setData(prev => ({
+          ...prev,
+          logs: [newLog, ...prev.logs]
+        }));
+        
+        handleAction("addLog", { target: "logs", data: newLog });
       };
+
+      // 計算ロジック
+      const ptsA = useMemo(() => data.logs.filter(l => l.person === "A").reduce((s, l) => s + l.weight, 0), [data.logs]);
+      const ptsB = useMemo(() => data.logs.filter(l => l.person === "B").reduce((s, l) => s + l.weight, 0), [data.logs]);
+      const ratioA = useMemo(() => (ptsA + ptsB) === 0 ? 50 : (ptsA / (ptsA + ptsB)) * 100, [ptsA, ptsB]);
 
       const filteredLogs = useMemo(() => {
         const start = new Date(startDate + "T00:00:00").getTime();
         const end = new Date(endDate + "T23:59:59").getTime();
         return data.logs.filter(l => l.time >= start && l.time <= end).sort((a,b) => b.time - a.time);
       }, [data.logs, startDate, endDate]);
-
-      const ptsA = data.logs.filter(l => l.person === "A").reduce((s, l) => s + l.weight, 0);
-      const ptsB = data.logs.filter(l => l.person === "B").reduce((s, l) => s + l.weight, 0);
-      const ratioA = (ptsA + ptsB) === 0 ? 50 : (ptsA / (ptsA + ptsB)) * 100;
 
       if (!loaded) return <div className="loading-screen">読み込み中...</div>;
 
@@ -133,11 +154,36 @@
           <div className="header"><div style={{width:80}}></div><div className="header-title">🏠 おうちクン</div><div className="header-btns"><button className="icon-btn" onClick={()=>setView("history")}>📊</button><button className="icon-btn" onClick={()=>setView("settings")}>⚙️</button></div></div>
           <div className="main-content">
             <div className="score-container">
-              <div className="score-card" style={{background:'var(--color-a-light)'}}><img src={pfps.A || "https://via.placeholder.com/60"} className="score-pfp" style={{borderColor:'var(--color-a)'}} /><div style={{color:'var(--color-a)', fontWeight:'bold'}}>{data.names.A}</div><div className="score-points">{ptsA}</div></div>
-              <div className="score-card" style={{background:'var(--color-b-light)'}}><img src={pfps.B || "https://via.placeholder.com/60"} className="score-pfp" style={{borderColor:'var(--color-b)'}} /><div style={{color:'var(--color-b)', fontWeight:'bold'}}>{data.names.B}</div><div className="score-points">{ptsB}</div></div>
+              <div className="score-card" style={{background:'var(--color-a-light)'}}>
+                <img src={pfps.A || "https://via.placeholder.com/60"} className="score-pfp" style={{borderColor:'var(--color-a)'}} />
+                <div style={{color:'var(--color-a)', fontWeight:'bold'}}>{data.names.A}</div>
+                <div className="score-points">{ptsA}</div>
+              </div>
+              <div className="score-card" style={{background:'var(--color-b-light)'}}>
+                <img src={pfps.B || "https://via.placeholder.com/60"} className="score-pfp" style={{borderColor:'var(--color-b)'}} />
+                <div style={{color:'var(--color-b)', fontWeight:'bold'}}>{data.names.B}</div>
+                <div className="score-points">{ptsB}</div>
+              </div>
             </div>
-            <div className="progress-container"><div style={{width:ratioA+'%', background:'var(--color-a)'}}/><div style={{width:(100-ratioA)+'%', background:'var(--color-b)'}}/></div>
-            {data.tasks.map(t => (<div key={t.id} className="card task-card"><span className="task-icon">{t.icon}</span><div className="task-info"><b>{t.name}</b><br/><small>{t.weight}pt</small></div><div className="btn-group"><button className="log-btn" style={{background:'var(--color-a)'}} onClick={()=>logTask(t.id, "A")}>{data.names.A[0]}</button><button className="log-btn" style={{background:'var(--color-b)'}} onClick={()=>logTask(t.id, "B")}>{data.names.B[0]}</button></div></div>))}
+            
+            <div className="progress-container">
+              <div className="progress-bar" style={{width:ratioA+'%', background:'var(--color-a)'}}/>
+              <div className="progress-bar" style={{width:(100-ratioA)+'%', background:'var(--color-b)'}}/>
+            </div>
+
+            {data.tasks.map(t => (
+              <div key={t.id} className="card task-card">
+                <span className="task-icon">{t.icon}</span>
+                <div className="task-info">
+                  <b>{t.name}</b><br/>
+                  <small>{t.weight}pt</small>
+                </div>
+                <div className="btn-group">
+                  <button className="log-btn" style={{background:'var(--color-a)'}} onClick={()=>logTask(t.id, "A")}>{data.names.A[0]}</button>
+                  <button className="log-btn" style={{background:'var(--color-b)'}} onClick={()=>logTask(t.id, "B")}>{data.names.B[0]}</button>
+                </div>
+              </div>
+            ))}
           </div>
         </div>
       );
