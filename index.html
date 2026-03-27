@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-  <title>おうちクン v2.1</title>
+  <title>おうちクン v2.2</title>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
@@ -11,40 +11,27 @@
     :root { --bg-color: #F8F9FA; --card-bg: #FFFFFF; --text-main: #333333; --text-sub: #888888; --color-a: #FF6B6B; --color-b: #4ECDC4; --color-a-light: #FFE5E5; --color-b-light: #E0F7F5; --shadow: 0 4px 12px rgba(0,0,0,0.05); }
     * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
     body { background: var(--bg-color); font-family: sans-serif; color: var(--text-main); }
-    
-    /* ヘッダー */
     .header { display: flex; justify-content: space-between; align-items: center; padding: 20px; background: #fff; position: sticky; top: 0; z-index: 10; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
     .header-title { font-size: 18px; font-weight: bold; color: #444; }
     .settings-btn { font-size: 24px; cursor: pointer; background: none; border: none; padding: 5px; color: #888; }
-
     .main-content { padding: 20px; max-width: 500px; margin: 0 auto; }
     .card { background: var(--card-bg); padding: 18px; border-radius: 24px; box-shadow: var(--shadow); margin-bottom: 16px; border: 1px solid rgba(0,0,0,0.02); }
-    
-    /* スコア */
     .score-container { display: flex; gap: 12px; margin-bottom: 20px; }
-    .score-card { flex: 1; text-align: center; padding: 15px; border-radius: 20px; position: relative; }
+    .score-card { flex: 1; text-align: center; padding: 15px; border-radius: 20px; }
     .score-pfp { width: 55px; height: 55px; border-radius: 50%; object-fit: cover; border: 3px solid #fff; background: #eee; margin-bottom: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
     .score-points { font-size: 30px; font-weight: 900; line-height: 1; }
-    .score-unit { font-size: 12px; margin-left: 2px; }
-    
-    .progress-container { background: #E9ECEF; height: 12px; border-radius: 6px; overflow: hidden; margin-bottom: 25px; display: flex; box-shadow: inset 0 1px 2px rgba(0,0,0,0.1); }
-    
-    /* タスクリスト */
+    .progress-container { background: #E9ECEF; height: 12px; border-radius: 6px; overflow: hidden; margin-bottom: 25px; display: flex; }
     .task-card { display: flex; align-items: center; padding: 15px; }
     .task-icon { font-size: 28px; margin-right: 15px; }
     .task-info { flex: 1; }
     .task-name { font-weight: bold; font-size: 16px; display: block; }
     .task-pts { font-size: 12px; color: var(--text-sub); }
     .btn-group { display: flex; gap: 8px; }
-    .log-btn { border: none; padding: 10px 18px; border-radius: 12px; cursor: pointer; font-weight: bold; color: #fff; transition: transform 0.1s; }
-    .log-btn:active { transform: scale(0.95); }
-    
-    /* 設定画面 */
+    .log-btn { border: none; padding: 10px 18px; border-radius: 12px; cursor: pointer; font-weight: bold; color: #fff; }
     .settings-view { background: #fff; min-height: 100vh; }
     .back-btn { background: none; border: none; font-size: 16px; color: #555; cursor: pointer; display: flex; align-items: center; gap: 5px; }
     .form-label { display: block; font-size: 13px; font-weight: bold; color: #666; margin-top: 15px; }
     .form-input { width: 100%; padding: 12px; margin: 5px 0; border-radius: 12px; border: 1px solid #E0E0E0; background: #F8F9FA; font-size: 14px; }
-    
     .modal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); display: flex; justify-content: center; align-items: center; z-index: 100; padding: 20px; }
     .loading { text-align: center; padding: 100px; font-weight: bold; color: #888; }
   </style>
@@ -56,7 +43,7 @@
     const GAS_URL = "https://script.google.com/macros/s/AKfycbw1pkuwQ3jtT7AUobbjuXVueSSY8MRcQQO6snoZ-7-38WAQrxawoRE1aPKlDluOgO2XRQ/exec";
 
     function App() {
-      const [view, setView] = useState("home"); // "home" or "settings"
+      const [view, setView] = useState("home");
       const [data, setData] = useState({ tasks: [], logs: [], names: { A: "天誠", B: "彩香" } });
       const [pfps, setPfps] = useState({ A: localStorage.getItem("pfp_A") || "", B: localStorage.getItem("pfp_B") || "" });
       const [loaded, setLoaded] = useState(false);
@@ -92,34 +79,26 @@
 
       if (!loaded) return <div className="loading">読み込み中...</div>;
 
-      // --- 設定画面コンポーネント ---
       if (view === "settings") {
         return (
           <div className="settings-view">
-            <div className="header">
-              <button className="back-btn" onClick={() => setView("home")}>◀ 戻る</button>
-              <div className="header-title">設定</div>
-              <div style={{width: 40}}></div>
-            </div>
+            <div className="header"><button className="back-btn" onClick={() => setView("home")}>◀ 戻る</button><div className="header-title">設定</div><div style={{width: 40}}></div></div>
             <div className="main-content">
               <div className="card">
                 <h4 style={{marginBottom: 10}}>👤 プロフィール設定</h4>
-                <label className="form-label">{data.names.A} の画像URL</label>
-                <input className="form-input" value={pfps.A} onChange={e=>setPfps({...pfps, A:e.target.value})} placeholder="https://..." />
-                <label className="form-label">{data.names.B} の画像URL</label>
-                <input className="form-input" value={pfps.B} onChange={e=>setPfps({...pfps, B:e.target.value})} placeholder="https://..." />
+                <label className="form-label">{data.names.A} の画像URL</label><input className="form-input" value={pfps.A} onChange={e=>setPfps({...pfps, A:e.target.value})} />
+                <label className="form-label">{data.names.B} の画像URL</label><input className="form-input" value={pfps.B} onChange={e=>setPfps({...pfps, B:e.target.value})} />
               </div>
-
               <div className="card">
-                <div style={{display:'flex', justifyContent:'space-between', marginBottom: 15}}>
-                  <h4 style={{margin:0}}>🍳 家事の管理</h4>
-                  <button onClick={()=>setEditing({icon:'✨', name:'', weight:3})} style={{border:'none', background:'none', color:'blue', fontWeight:'bold'}}>＋追加</button>
-                </div>
+                <div style={{display:'flex', justifyContent:'space-between', marginBottom: 15}}><h4>🍳 家事の管理</h4><button onClick={()=>setEditing({icon:'✨', name:'', weight:3})} style={{border:'none', background:'none', color:'blue', fontWeight:'bold'}}>＋追加</button></div>
                 {data.tasks.map(t => (
-                  <div key={t.id} style={{display:'flex', alignItems:'center', padding:'10px 0', borderBottom:'1px solid #f0f0f0'}}>
-                    <span style={{marginRight: 10}}>{t.icon}</span>
-                    <span style={{flex:1}}>{t.name} ({t.weight}pt)</span>
-                    <button onClick={() => { if(confirm('削除しますか？')) handleAction("deleteTask", {id: t.id}); }} style={{border:'none', background:'none', color:'#FF4D4F'}}>削除</button>
+                  <div key={t.id} style={{display:'flex', alignItems:'center', padding:'12px 0', borderBottom:'1px solid #f0f0f0'}}>
+                    <span style={{marginRight: 10, fontSize: 20}}>{t.icon}</span>
+                    <span style={{flex:1}}>{t.name} <small style={{color:'#999'}}>({t.weight}pt)</small></span>
+                    <div style={{display:'flex', gap:10}}>
+                      <button onClick={()=>setEditing(t)} style={{border:'none', background:'none', color:'#4A90E2'}}>編集</button>
+                      <button onClick={() => { if(confirm('削除しますか？')) handleAction("deleteTask", {id: t.id}); }} style={{border:'none', background:'none', color:'#FF4D4F'}}>削除</button>
+                    </div>
                   </div>
                 ))}
               </div>
@@ -127,16 +106,13 @@
             {editing && (
               <div className="modal">
                 <div className="card" style={{width:'90%', maxWidth:350}}>
-                  <h3 style={{marginBottom: 15}}>家事を追加</h3>
-                  <label className="form-label">アイコン (絵文字)</label>
-                  <input className="form-input" value={editing.icon} onChange={e=>setEditing({...editing, icon:e.target.value})} />
-                  <label className="form-label">家事の名前</label>
-                  <input className="form-input" value={editing.name} onChange={e=>setEditing({...editing, name:e.target.value})} />
-                  <label className="form-label">ポイント</label>
-                  <input className="form-input" type="number" value={editing.weight} onChange={e=>setEditing({...editing, weight:e.target.value})} />
+                  <h3 style={{marginBottom: 15}}>{editing.id ? '家事を編集' : '家事を追加'}</h3>
+                  <label className="form-label">アイコン (絵文字)</label><input className="form-input" value={editing.icon} onChange={e=>setEditing({...editing, icon:e.target.value})} />
+                  <label className="form-label">家事の名前</label><input className="form-input" value={editing.name} onChange={e=>setEditing({...editing, name:e.target.value})} />
+                  <label className="form-label">ポイント</label><input className="form-input" type="number" value={editing.weight} onChange={e=>setEditing({...editing, weight:e.target.value})} />
                   <div style={{display:'flex', gap: 10, marginTop: 20}}>
                     <button className="log-btn" style={{flex:1, background:'#eee', color:'#333'}} onClick={()=>setEditing(null)}>キャンセル</button>
-                    <button className="log-btn" style={{flex:1, background:'#333'}} onClick={()=>{handleAction("addTask", {data:editing}); setEditing(null);}}>保存</button>
+                    <button className="log-btn" style={{flex:1, background:'#333'}} onClick={()=>{handleAction(editing.id ? "updateTask" : "addTask", {data:editing}); setEditing(null);}}>保存</button>
                   </div>
                 </div>
               </div>
@@ -145,41 +121,21 @@
         );
       }
 
-      // --- ホーム画面コンポーネント ---
       return (
         <div>
-          <div className="header">
-            <div style={{width: 40}}></div>
-            <div className="header-title">🏠 おうちクン</div>
-            <button className="settings-btn" onClick={() => setView("settings")}>⚙️</button>
-          </div>
-          
+          <div className="header"><div style={{width: 40}}></div><div className="header-title">🏠 おうちクン</div><button className="settings-btn" onClick={() => setView("settings")}>⚙️</button></div>
           <div className="main-content">
             <div className="score-container">
               <div className="score-card" style={{background:'var(--color-a-light)'}}>
-                <img src={pfps.A || "https://via.placeholder.com/60"} className="score-pfp" style={{borderColor: 'var(--color-a)'}} />
-                <div style={{color:'var(--color-a)', fontWeight:'bold', fontSize: '14px'}}>{data.names.A}</div>
-                <div className="score-points" style={{color:'var(--color-a)'}}>{ptsA}<span className="score-unit">pt</span></div>
+                <img src={pfps.A || "https://via.placeholder.com/60"} className="score-pfp" style={{borderColor: 'var(--color-a)'}} /><div style={{color:'var(--color-a)', fontWeight:'bold', fontSize: '14px'}}>{data.names.A}</div><div className="score-points" style={{color:'var(--color-a)'}}>{ptsA}</div>
               </div>
               <div className="score-card" style={{background:'var(--color-b-light)'}}>
-                <img src={pfps.B || "https://via.placeholder.com/60"} className="score-pfp" style={{borderColor: 'var(--color-b)'}} />
-                <div style={{color:'var(--color-b)', fontWeight:'bold', fontSize: '14px'}}>{data.names.B}</div>
-                <div className="score-points" style={{color:'var(--color-b)'}}>{ptsB}<span className="score-unit">pt</span></div>
+                <img src={pfps.B || "https://via.placeholder.com/60"} className="score-pfp" style={{borderColor: 'var(--color-b)'}} /><div style={{color:'var(--color-b)', fontWeight:'bold', fontSize: '14px'}}>{data.names.B}</div><div className="score-points" style={{color:'var(--color-b)'}}>{ptsB}</div>
               </div>
             </div>
-
-            <div className="progress-container">
-              <div style={{width: ratioA+"%", background:'var(--color-a)', transition: 'width 0.5s ease'}} />
-              <div style={{width: (100-ratioA)+"%", background:'var(--color-b)', transition: 'width 0.5s ease'}} />
-            </div>
-
+            <div className="progress-container"><div style={{width: ratioA+"%", background:'var(--color-a)', transition: 'width 0.5s ease'}} /><div style={{width: (100-ratioA)+"%", background:'var(--color-b)', transition: 'width 0.5s ease'}} /></div>
             {data.tasks.map(t => (
-              <div key={t.id} className="card task-card">
-                <span className="task-icon">{t.icon}</span>
-                <div className="task-info">
-                  <span className="task-name">{t.name}</span>
-                  <span className="task-pts">{t.weight}ポイント</span>
-                </div>
+              <div key={t.id} className="card task-card"><span className="task-icon">{t.icon}</span><div className="task-info"><span className="task-name">{t.name}</span><span className="task-pts">{t.weight}pt</span></div>
                 <div className="btn-group">
                   <button className="log-btn" style={{background:'var(--color-a)'}} onClick={()=>logTask(t.id, "A")}>{data.names.A[0]}</button>
                   <button className="log-btn" style={{background:'var(--color-b)'}} onClick={()=>logTask(t.id, "B")}>{data.names.B[0]}</button>
