@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>おうちクン</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
+  <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+    body { background: #FAFAF8; font-family: 'Hiragino Kaku Gothic ProN','Noto Sans JP',sans-serif; overflow-x: hidden; }
+    @keyframes slideDown {
+      from { opacity:0; transform:translateX(-50%) translateY(-16px); }
+      to   { opacity:1; transform:translateX(-50%) translateY(0); }
+    }
+    .task-btn:active { transform: scale(0.95); opacity: 0.8; }
+    .nav-item { transition: all 0.2s; cursor: pointer; border: none; }
+  </style>
+</head>
+<body>
+<div id="root"></div>
+
+<script type="text/babel">
+const { useState, useEffect } = React;
+
+// ★★★ ここにステップ1でメモした「ウェブアプリのURL」を貼り付けてください ★★★
+const GAS_URL = "https://script.google.com/macros/s/AKfycbw1pkuwQ3jtT7AUobbjuXVueSSY8MRcQQO6snoZ-7-38WAQrxawoRE1aPKlDluOgO2XRQ/exec";
+
+const INITIAL_TASKS = [
+  { id: 1, name: "料理",    weight: 3, icon: "🍳" },
+  { id: 2, name: "掃除",    weight: 2, icon: "🧹" },
+  { id: 3, name: "洗濯",    weight: 2, icon: "👕" },
+  { id: 4, name: "買い物",  weight: 2, icon: "🛒" },
+  { id: 5, name: "食器洗い",weight: 1, icon: "🍽️" },
+];
+
+const COLORS = {
+  A: { main: "#FF6B6B", light: "#FFE5E5", dark: "#CC4444" },
+  B: { main: "#4ECDC4", light: "#E0F7F5", dark: "#2EA89F" },
+};
+
+function App() {
+  const [tasks, setTasks] = useState(INITIAL_TASKS);
+  const [logs, setLogs] = useState([]);
+  const [names, setNames] = useState({ A: "パートナーA", B: "パートナーB" });
+  const [view, setView] = useState("dashboard");
+  const [loaded, setLoaded] = useState(false);
+  const [saveStatus, setSaveStatus] = useState(null);
+  const [toast, setToast] = useState(null);
+
+  // 1. データ読み込み（GASから取得）
+  const fetchData = async () => {
+    try {
+      const response = await fetch(GAS_URL);
+      const data = await response.json();
+      if (data.tasks && data.tasks.length > 0) {
+        setTasks(data.tasks.map(t => ({...t, id: Number(t.id), weight: Number(t.weight
